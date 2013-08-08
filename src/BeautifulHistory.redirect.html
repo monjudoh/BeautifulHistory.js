@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <script>
+        var lastExecuted = 0;
+        setInterval(function(){
+            if (Date.now() - lastExecuted > 500) {
+                execute();
+            }
+        },50);
+        function execute() {
+            var obj;
+            try {
+                obj = JSON.parse(atob(location.hash.replace(/^#/, ''))) || {};
+            } catch (e) {
+                obj = {};
+            }
+            switch (obj.command) {
+                case 'redirect':
+                    (function () {
+                        if (obj.replace) {
+                            (function () {
+                                var path = location.pathname;
+                                if (location.search) {
+                                    path += location.search;
+                                }
+                                var path_hash = path +'#'+btoa(JSON.stringify(obj.replace));
+                                history.replaceState(null,null,path_hash);
+                            })();
+                        }
+                        setTimeout(function(){
+                            lastExecuted = Date.now();
+                            location.href = obj.path_hash;
+                        },16);
+                    })();
+                    break;
+                case 'back':
+                    lastExecuted = Date.now();
+                    history.go(-obj.length);
+                    break;
+                default :
+                    break;
+            }
+        }
+        window.onload = execute;
+        window.onunload = function(){};
+    </script>
+</head>
+<body>
+<!--
+
+/*
+ * BeautifulHistory.js
+ *
+ * https://github.com/monjudoh/BeautifulHistory.js
+ * version: 0.0.1
+ *
+ * Copyright (c) 2013 monjudoh
+ * Dual licensed under the MIT (MIT-LICENSE.txt)
+ * and GPL (GPL-LICENSE.txt) licenses.
+ */
+
+-->
+</body>
+</html>

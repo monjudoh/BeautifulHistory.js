@@ -1,23 +1,3 @@
-/*
- * BeautifulHistory.js
- *
- * https://github.com/monjudoh/BeautifulHistory.js
- * version: 0.0.2
- *
- * Copyright (c) 2013 monjudoh
- * Dual licensed under the MIT (MIT-LICENSE.txt)
- * and GPL (GPL-LICENSE.txt) licenses.
- */
-/**
- * @module BeautifulHistory
- * @version 0.0.2
- * @author monjudoh
- * @copyright (c) 2013 monjudoh<br/>
- * Dual licensed under the MIT (MIT-LICENSE.txt)<br/>
- * and GPL (GPL-LICENSE.txt) licenses.
- * @see https://github.com/monjudoh/BeautifulHistory.js
- * @see BeautifulHistory
- */
 define('BeautifulHistory',
 [
   'BeautifulProperties',
@@ -41,8 +21,13 @@ function (
   var initOptions = config.initOptions || Object.create(null);
 
   /**
-   * @name BeautifulHistory
-   * @namespace
+   * @namespace BeautifulHistory
+   * @version 0.0.3
+   * @author monjudoh
+   * @copyright <pre>(c) 2013 monjudoh
+   * Dual licensed under the MIT (MIT-LICENSE.txt)
+   * and GPL (GPL-LICENSE.txt) licenses.</pre>
+   * @see https://github.com/monjudoh/BeautifulHistory.js
    */
   var BeautifulHistory = Object.create(null);
   BeautifulProperties.Events.provideMethods(BeautifulHistory);
@@ -146,9 +131,8 @@ function (
    * @description controllerに紐づくUIコンポーネントを非表示にする処理
    */
   /**
-   * @name register
+   * @function register
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {string} type
    * @param {{factory:BeautifulHistory~factory,show:BeautifulHistory~show,hide:BeautifulHistory~hide}} desc
@@ -170,9 +154,8 @@ function (
     BeautifulHistory.types[type] = desc;
   };
   /**
-   * @name setUp
+   * @function setUp
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {{namespace:string,whenBrowserRestart:string,redirectHtmlUrl:string=}} options
    * @returns {promise}
@@ -383,9 +366,8 @@ function (
     // なし
   };
   /**
-   * @name replace
+   * @function replace
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {string} type
    * @param {*=} options
@@ -424,9 +406,8 @@ function (
     history.replaceState(manager.convertInfoToState(info,index),null);
   };
   /**
-   * @name push
+   * @function push
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {string} type
    * @param {*=} options
@@ -448,9 +429,8 @@ function (
   };
 
   /**
-   * @name go
+   * @function go
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {number} index 遷移先index
    * @param {boolean=} silently デフォルト値false
@@ -493,9 +473,8 @@ function (
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
   });
   /**
-   * @name collapse
+   * @function collapse
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {number} startIndex
    * @param {number} endIndex
@@ -572,9 +551,8 @@ function (
     return promise;
   };
   /**
-   * @name backToPreviousDocument
+   * @function backToPreviousDocument
    * @memberOf BeautifulHistory
-   * @function
    * @description 現documentに遷移してくる前のdocumentまで戻る
    */
   BeautifulHistory.backToPreviousDocument = function backToPreviousDocument(){

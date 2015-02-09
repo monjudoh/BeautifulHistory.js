@@ -290,7 +290,7 @@ function (
           if (ev) {
             $(window).off('popstate', goHandler);
           }
-          manager.replace('empty',null,0);
+          manager.replace('empty',null,false,true);
           if (maxIndex !== 0) {
             $(window).on('popstate', resolve);
             manager.duringSilentOperation = false;
@@ -360,7 +360,7 @@ function (
     if (!history.state && storage.getItem('historyLength') === history.length) {
       (function () {
         manager.historyId = Date.now();
-        manager.replace('empty',null,0);
+        manager.replace('empty',null,false,true);
         function resolve() {
           headDfd.resolve('initial');
         }
@@ -375,7 +375,7 @@ function (
     if (!history.state) {
       (function () {
         manager.historyId = Date.now();
-        manager.replace('empty',null,0);
+        manager.replace('empty',null,false,true);
         headDfd.resolve('initial');
       })();
       return dfd.promise();
@@ -389,17 +389,20 @@ function (
    *
    * @param {string} type
    * @param {*=} options
-   * @param {number=} index 未指定の場合はcurrentIndex
-   * @description indexの位置のcontrollerを指定したtype/optionsのものに置き換える。<br/>
+   * @param {boolean=} silently trueの場合はinfoとstateの書き換えのみ行い表示には反映させない。未指定の場合はfalse。
+   * @param {boolean=} initialize 初期化の場合trueを指定する。基本的にアプリケーションコードでは使わない。
+   * @description this.currentIndex(初期化の場合は0)の位置のcontrollerを指定したtype/optionsのものに置き換える。<br/>
    * replace元とtypeが同じ場合は保存されたoptionsを置き換えるだけでcontrollerの再作成はしない。<br/>
    * 未表示の場合は表示する。
    */
-  BeautifulHistory.replace = function replace(type,options,index) {
+  BeautifulHistory.replace = function replace(type,options,silently,initialize) {
+    silently = silently !== undefined ? silently : false;
+    initialize = initialize !== undefined ? initialize : false;
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.replace(type,options)', type, options);
     }
-    var index = typeof index === 'number' ? index : this.currentIndex;
+    var index = initialize ? 0 : this.currentIndex;
     var info = this.controllers[index];
     // replace元とtypeが同じ場合のみ再利用する
     var isReuse = info && info.type === type;
@@ -408,7 +411,7 @@ function (
     } else {
       info = this.createInfo(type, index, options);
     }
-    if (!info.isShown) {
+    if (!info.isShown && !silently) {
       var controller = info.controller;
       var showCallback = manager.types[type].show;
       showCallback(controller,options);
@@ -418,7 +421,7 @@ function (
       }
       manager.trigger('show',type,controller);
     }
-    history.replaceState(manager.convertInfoToState(info,index));
+    history.replaceState(manager.convertInfoToState(info,index),null);
   };
   /**
    * @name push
@@ -439,7 +442,7 @@ function (
     var index = this.currentIndex + 1;
     var info = this.createInfo(type, index, options, {isShown: true});
     this.controllers.push(info);
-    history.pushState(this.convertInfoToState(info,index));
+    history.pushState(this.convertInfoToState(info,index),null);
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
   };
@@ -500,14 +503,23 @@ function (
    * @description historyの圧縮を行う。<br/>
    * startIndex〜endIndexの履歴をendIndex1個に置き換える。<br/>
    * endIndexが末尾の場合は一つ前に即座に戻るforceBackをpushしておく。<br/>
+   * 圧縮後、圧縮前のcurrentIndexに対応するindexに移動する。
    */
   BeautifulHistory.collapse = function collapse(startIndex,endIndex) {
-    var dfd = $.Deferred();
+    var headDfd = $.Deferred();
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.collapse(startIndex, endIndex)', startIndex, endIndex);
     }
     var currentIndex = this.currentIndex;
+    var indexAfterCollapse;
+    if (currentIndex < startIndex) {
+      indexAfterCollapse = currentIndex
+    } else if(currentIndex > endIndex) {
+      indexAfterCollapse = currentIndex - endIndex + startIndex;
+    } else {
+      indexAfterCollapse = startIndex;
+    }
     manager.duringSilentOperation = true;
     manager.controllers.splice(startIndex,(endIndex - startIndex));
     $(window).on('popstate',didBackToStartIndex);
@@ -516,7 +528,7 @@ function (
     function didBackToStartIndex(jqEv){
       $(window).off('popstate',didBackToStartIndex);
       (function (info) {
-        history.replaceState(manager.convertInfoToState(info,startIndex));
+        history.replaceState(manager.convertInfoToState(info,startIndex),null);
       })(manager.controllers[startIndex]);
       if (manager.controllers.length === startIndex + 1) {
         // 後続はない
@@ -531,7 +543,7 @@ function (
       $(window).off('popstate',didPopFromForceBack);
       BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
       setTimeout(function(){
-        dfd.resolve();
+        headDfd.resolve();
       },16);
     }
     function push(){
@@ -544,15 +556,20 @@ function (
       if (manager.controllers.length === nextIndex) {
         // 後続はない
         manager.duringSilentOperation = false;
-        dfd.resolve();
+        headDfd.resolve();
         return;
       }
       (function (info) {
-        history.pushState(manager.convertInfoToState(info,nextIndex));
+        history.pushState(manager.convertInfoToState(info,nextIndex),null);
       })(manager.controllers[nextIndex]);
       push();
     }
-    return dfd.promise();
+
+    var promise = headDfd.promise()
+    .then(function done(){
+      return manager.go(indexAfterCollapse);
+    });
+    return promise;
   };
   /**
    * @name backToPreviousDocument

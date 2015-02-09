@@ -3,7 +3,7 @@
   "version": "0.0.3",
   "repository": {
     "type": "git",
-    "url": "BeautifulHistory"
+    "url": "https://github.com/monjudoh/BeautifulHistory.js.git"
   },
   "private": true,
   "devDependencies": {

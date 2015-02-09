@@ -158,22 +158,20 @@ function (
    * @memberOf BeautifulHistory
    *
    * @param {{namespace:string,whenBrowserRestart:string,redirectHtmlUrl:string=}} options
-   * @returns {promise}
-   * @description <br/>
-   * あるnamespaceでsetUpした後にブラウザ再起動をし初めて同一namespaceでsetUpしたとき、<br/>
-   * すなわちHistoryManagerで履歴を管理していたタブがブラウザ再起動によって再度開かれたときの動作はwhenBrowserRestartによって決定される。<br/>
-   *   backToPreviousDocument:HistoryManagerで履歴を管理していたdocumentに遷移してくる直前のdocumentまで戻る<br/>
-   *   redirect              :redirect用HTMLを使ったハックで履歴を消してリロードする<br/>
-   *   none                  :何もしない<br/>
-   * <br/>
-   * - redirectHtmlUrl<br/>
-   * - storageTruncate
+   * @returns {Promise}
+   * @description <pre>
+   * あるnamespaceでsetUpした後にブラウザ再起動をし初めて同一namespaceでsetUpしたとき、
+   * すなわちHistoryManagerで履歴を管理していたタブがブラウザ再起動によって再度開かれたときの動作はwhenBrowserRestartによって決定される。
+   *   backToPreviousDocument:HistoryManagerで履歴を管理していたdocumentに遷移してくる直前のdocumentまで戻る
+   *   redirect              :redirect用HTMLを使ったハックで履歴を消してリロードする
+   *   none                  :何もしない
    *
+   * - redirectHtmlUrl
+   * - storageTruncate
+   * </pre>
    */
   BeautifulHistory.setUp = function setUp(options){
     options = _.defaults(_.clone(options),initOptions);
-    var headDfd = $.Deferred();
-    var dfd = headDfd;
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.setUp(options)',options);
@@ -183,11 +181,14 @@ function (
     var storageTruncate = options.storageTruncate;
     recoveryStorage.truncate(storageTruncate,2);
     storage.truncate(storageTruncate,2);
-    dfd = dfd.then(function(type){
+    var headResolver;
+    var promise = new Promise(function(resolve,reject){
+      headResolver = resolve;
+    });
+    promise = promise.then(function(type){
       if (manager.debug) {
         console.log('BeautifulHistory.setUp type',type);
       }
-      var dfd = $.Deferred();
       // タブを閉じた場合・戻るボタンで一度に別ページまで遷移した場合はcurrentIndexの記録を削除する
       // ブラウザ再起動後にこのページが開かれるのは、起動直後ではなくて別ページからの遷移であるはずなので
       $(window).on('unload',function(ev){
@@ -206,7 +207,7 @@ function (
         this.historySpecifiedStorage.setItem('maxIndex',maxIndex);
         recoveryStorage.setItem('maxIndex',maxIndex);
       });
-      return dfd.resolve(type).promise();
+      return Promise.resolve(type);
     });
 
     // ブラウザリロード時
@@ -232,7 +233,7 @@ function (
             $(window).off('popstate', handler);
             manager.duringSilentOperation = false;
             manager.go(index).then(function(){
-              headDfd.resolve('restore');
+              headResolver('restore');
             });
             return;
           }
@@ -252,7 +253,7 @@ function (
           handler();
         }
       })();
-      return dfd.promise();
+      return promise;
     }
     if (manager.debug) {
       console.log("BeautifulHistory.setUp recoveryStorage.getItem('currentIndex'),recoveryStorage.getItem('maxIndex')",recoveryStorage.getItem('currentIndex'),recoveryStorage.getItem('maxIndex'));
@@ -267,7 +268,7 @@ function (
         maxIndex = maxIndex !== undefined ? maxIndex : index;
         recoveryStorage.removeItem('maxIndex');
         function resolve(){
-          headDfd.resolve('browserRestart');
+          headResolver('browserRestart');
         }
         function goHandler(ev){
           if (ev) {
@@ -336,7 +337,7 @@ function (
           goHandler();
         }
       })();
-      return dfd.promise();
+      return promise;
     }
 
     // whenBrowserRestart:'redirect'でskipされた所にforwardで戻ってきてしまった場合
@@ -345,13 +346,13 @@ function (
         manager.historyId = Date.now();
         manager.replace('empty',null,false,true);
         function resolve() {
-          headDfd.resolve('initial');
+          headResolver('initial');
         }
         $(window).on('popstate', resolve);
         manager.duringSilentOperation = false;
         manager.push('forceBack');
       })();
-      return dfd.promise();
+      return promise;
     }
 
     // 外部からの遷移直後
@@ -359,9 +360,9 @@ function (
       (function () {
         manager.historyId = Date.now();
         manager.replace('empty',null,false,true);
-        headDfd.resolve('initial');
+        headResolver('initial');
       })();
-      return dfd.promise();
+      return promise;
     }
     // なし
   };
@@ -434,7 +435,7 @@ function (
    *
    * @param {number} index 遷移先index
    * @param {boolean=} silently デフォルト値false
-   * @returns {promise}
+   * @returns {Promise}
    */
   BeautifulHistory.go = function go(index,silently) {
     silently = silently !== undefined ? silently : false;
@@ -443,23 +444,26 @@ function (
       console.info('BeautifulHistory.go(index,silently)',index,silently);
     }
     var currentIndex = manager.getSilently('currentIndex');
-    var dfd = $.Deferred();
     if (currentIndex === index) {
-      return dfd.resolve().promise();
+      return Promise.resolve();
     }
     if (silently) {
       manager.duringSilentOperation = true;
     }
+    var resolve;
+    var promise = new Promise(function(resolve_,reject){
+      resolve = resolve_;
+    });
     function handler(){
       $(window).off('popstate',handler);
       if (silently) {
         manager.duringSilentOperation = false;
       }
-      dfd.resolve();
+      resolve();
     }
     $(window).on('popstate',handler);
     history.go(index - currentIndex);
-    return dfd.promise();
+    return promise;
   };
   $(window).on('popstate',function(jqEv){
     var manager = BeautifulHistory;
@@ -478,14 +482,17 @@ function (
    *
    * @param {number} startIndex
    * @param {number} endIndex
-   * @returns {promise}
+   * @returns {Promise}
    * @description historyの圧縮を行う。<br/>
    * startIndex〜endIndexの履歴をendIndex1個に置き換える。<br/>
    * endIndexが末尾の場合は一つ前に即座に戻るforceBackをpushしておく。<br/>
    * 圧縮後、圧縮前のcurrentIndexに対応するindexに移動する。
    */
   BeautifulHistory.collapse = function collapse(startIndex,endIndex) {
-    var headDfd = $.Deferred();
+    var resolve;
+    var promise = new Promise(function(resolve_,reject){
+      resolve = resolve_;
+    });
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.collapse(startIndex, endIndex)', startIndex, endIndex);
@@ -521,9 +528,7 @@ function (
     function didPopFromForceBack(jqEv){
       $(window).off('popstate',didPopFromForceBack);
       BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
-      setTimeout(function(){
-        headDfd.resolve();
-      },16);
+      setTimeout(resolve,16);
     }
     function push(){
       var currentIndex = manager.getSilently('currentIndex');
@@ -535,7 +540,7 @@ function (
       if (manager.controllers.length === nextIndex) {
         // 後続はない
         manager.duringSilentOperation = false;
-        headDfd.resolve();
+        resolve();
         return;
       }
       (function (info) {
@@ -544,11 +549,9 @@ function (
       push();
     }
 
-    var promise = headDfd.promise()
-    .then(function done(){
+    return promise.then(function done(){
       return manager.go(indexAfterCollapse);
     });
-    return promise;
   };
   /**
    * @function backToPreviousDocument

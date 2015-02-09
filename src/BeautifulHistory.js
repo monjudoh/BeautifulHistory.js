@@ -4,7 +4,6 @@ define('BeautifulHistory',
   'NamespacedWebStorage',
   'RecoveryStorage',
   'underscore',
-  'jquery',
   'module'
 ],
 function (
@@ -12,7 +11,6 @@ function (
           NamespacedWebStorage,
           RecoveryStorage,
           _,
-          $,
           module
 ) {
 
@@ -112,6 +110,45 @@ function (
   BeautifulHistory.controllers = [];
   BeautifulHistory.types = Object.create(null);
   BeautifulHistory.duringSilentOperation = false;
+  var popstateHandlers = [];
+
+  /**
+   * @function BeautifulHistory~onPopstate
+   * @param {function} handler
+   * @description handlerをwindowにpopstate eventとして登録する。
+   * @private
+   */
+  function onPopstate(handler) {
+    if (popstateHandlers.indexOf(handler) !== -1) {
+      return;
+    }
+    window.addEventListener('popstate',handler,false);
+    popstateHandlers.push(handler);
+  }
+  /**
+   * @function BeautifulHistory~offPopstate
+   * @param {function=} handler
+   * @description <pre>windowにpopstate eventとして登録されたhandlerを削除する。
+   * handler未指定の場合はBeautifulHistory~onPopstateで登録済みのhandlerを全て削除する。</pre>
+   * @private
+   */
+  function offPopstate(handler) {
+    // all
+    if (!handler) {
+      popstateHandlers.forEach(function (handler) {
+        window.removeEventListener('popstate', handler, false);
+      });
+      popstateHandlers.length = 0;
+      return;
+    }
+    var index = popstateHandlers.indexOf(handler);
+    // no bound handler.
+    if (index === -1) {
+      return;
+    }
+    window.removeEventListener('popstate', handler, false);
+    popstateHandlers.slice(index,1);
+  }
   /**
    * @callback BeautifulHistory~factory
    * @param {*=} parentController push元のcontroller
@@ -191,9 +228,11 @@ function (
       }
       // タブを閉じた場合・戻るボタンで一度に別ページまで遷移した場合はcurrentIndexの記録を削除する
       // ブラウザ再起動後にこのページが開かれるのは、起動直後ではなくて別ページからの遷移であるはずなので
-      $(window).on('unload',function(ev){
+      function unload(ev){
         recoveryStorage.removeItem('currentIndex');
-      });
+        window.removeEventListener('unload',unload,false);
+      }
+      window.addEventListener('unload',unload,false);
       manager.on('change:currentIndex',function(ev,currentIndex){
         recoveryStorage.setItem('currentIndex',currentIndex);
         storage.setItem('historyLength',history.length);
@@ -230,7 +269,7 @@ function (
           }
           manager.controllers[state.index] = manager.createInfo(type, state.index, options);
           if (state.index === maxIndex) {
-            $(window).off('popstate', handler);
+            offPopstate(handler);
             manager.duringSilentOperation = false;
             manager.go(index).then(function(){
               headResolver('restore');
@@ -242,7 +281,7 @@ function (
           },16);
         }
         if (maxIndex !== 0) {
-          $(window).on('popstate',handler);
+          onPopstate(handler);
           if (index !== 0) {
             history.go(-index);
           } else {
@@ -272,11 +311,11 @@ function (
         }
         function goHandler(ev){
           if (ev) {
-            $(window).off('popstate', goHandler);
+            offPopstate(goHandler);
           }
           manager.replace('empty',null,false,true);
           if (maxIndex !== 0) {
-            $(window).on('popstate', resolve);
+            onPopstate(resolve);
             manager.duringSilentOperation = false;
             manager.push('forceBack');
           } else {
@@ -292,7 +331,7 @@ function (
             case 'redirect':
               (function () {
                 function handler(){
-                  $(window).off('popstate',handler);
+                  offPopstate(handler);
                   var url = (function () {
                     var path_hash = location.href.replace(new RegExp('^'+location.origin),'');
                     var json = JSON.stringify([
@@ -321,7 +360,7 @@ function (
                     location.href = url;
                   },16);
                 }
-                $(window).on('popstate',handler);
+                onPopstate(handler);
                 history.go(-index);
               })();
               break;
@@ -348,7 +387,7 @@ function (
         function resolve() {
           headResolver('initial');
         }
-        $(window).on('popstate', resolve);
+        onPopstate(resolve);
         manager.duringSilentOperation = false;
         manager.push('forceBack');
       })();
@@ -455,19 +494,18 @@ function (
       resolve = resolve_;
     });
     function handler(){
-      $(window).off('popstate',handler);
+      offPopstate(handler);
       if (silently) {
         manager.duringSilentOperation = false;
       }
       resolve();
     }
-    $(window).on('popstate',handler);
+    onPopstate(handler);
     history.go(index - currentIndex);
     return promise;
   };
-  $(window).on('popstate',function(jqEv){
+  onPopstate(function(ev){
     var manager = BeautifulHistory;
-    var ev = jqEv.originalEvent;
     if (manager.debug) {
       console.log('BeautifulHistory popstate ev.state,history.state,manager.duringSilentOperation',ev.state,history.state,manager.duringSilentOperation);
     }
@@ -508,25 +546,25 @@ function (
     }
     manager.duringSilentOperation = true;
     manager.controllers.splice(startIndex,(endIndex - startIndex));
-    $(window).on('popstate',didBackToStartIndex);
+    onPopstate(didBackToStartIndex);
     history.go(startIndex - currentIndex);
 
-    function didBackToStartIndex(jqEv){
-      $(window).off('popstate',didBackToStartIndex);
+    function didBackToStartIndex(ev){
+      offPopstate(didBackToStartIndex);
       (function (info) {
         history.replaceState(manager.convertInfoToState(info,startIndex),null);
       })(manager.controllers[startIndex]);
       if (manager.controllers.length === startIndex + 1) {
         // 後続はない
         manager.duringSilentOperation = false;
-        $(window).on('popstate',didPopFromForceBack);
+        onPopstate(didPopFromForceBack);
         manager.push('forceBack');
         return;
       }
       push();
     }
-    function didPopFromForceBack(jqEv){
-      $(window).off('popstate',didPopFromForceBack);
+    function didPopFromForceBack(ev){
+      offPopstate(didPopFromForceBack);
       BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
       setTimeout(resolve,16);
     }
@@ -559,8 +597,8 @@ function (
    * @description 現documentに遷移してくる前のdocumentまで戻る
    */
   BeautifulHistory.backToPreviousDocument = function backToPreviousDocument(){
-    $(window).off('popstate');
-    $(window).on('popstate',function(){
+    offPopstate();
+    onPopstate(function(){
       history.back();
     });
     history.back();

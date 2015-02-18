@@ -326,7 +326,7 @@ function (
         if (index !== 0) {
           switch (options.whenBrowserRestart) {
             case 'backToPreviousDocument':
-              manager.backToPreviousDocument();
+              manager.backToPreviousDocument(false);
               break;
             case 'redirect':
               (function () {
@@ -594,14 +594,28 @@ function (
   /**
    * @function backToPreviousDocument
    * @memberOf BeautifulHistory
-   * @description 現documentに遷移してくる前のdocumentまで戻る
+   * @param {boolean=} useCurrentIndex default:true
+   * @description <pre>現documentに遷移してくる前のdocumentまで戻る
+   * useCurrentIndex===true  : currentIndex前が現documentの最初だと言えるのでcurrentIndex + 1戻る
+   * useCurrentIndex===false : 前documentまで戻り現documentから抜けるとcontextが変わり、現documentのJSは実行されなくなるはずなので、
+   *                           popstate eventで再帰的に戻っていくと前documentに戻るまで実行されることが期待されるので、そのようにする。
+   * </pre>
    */
-  BeautifulHistory.backToPreviousDocument = function backToPreviousDocument(){
-    offPopstate();
-    onPopstate(function(){
+  BeautifulHistory.backToPreviousDocument = function backToPreviousDocument(useCurrentIndex){
+    useCurrentIndex = useCurrentIndex !== undefined ? useCurrentIndex : true;
+    if (useCurrentIndex) {
+      var currentIndex = BeautifulHistory.getSilently('currentIndex');
+      if (currentIndex >= 0) {
+        offPopstate();
+        history.go(-(currentIndex + 1));
+      }
+    } else {
+      offPopstate();
+      onPopstate(function(){
+        history.back();
+      });
       history.back();
-    });
-    history.back();
+    }
   };
   BeautifulHistory.createInfo = function createInfo(type, index, options, override){
     override = override || Object.create(null);

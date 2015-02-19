@@ -1,30 +1,9 @@
-/*
- * BeautifulHistory.js
- *
- * https://github.com/monjudoh/BeautifulHistory.js
- * version: 0.0.2
- *
- * Copyright (c) 2013 monjudoh
- * Dual licensed under the MIT (MIT-LICENSE.txt)
- * and GPL (GPL-LICENSE.txt) licenses.
- */
-/**
- * @module BeautifulHistory
- * @version 0.0.2
- * @author monjudoh
- * @copyright (c) 2013 monjudoh<br/>
- * Dual licensed under the MIT (MIT-LICENSE.txt)<br/>
- * and GPL (GPL-LICENSE.txt) licenses.
- * @see https://github.com/monjudoh/BeautifulHistory.js
- * @see BeautifulHistory
- */
 define('BeautifulHistory',
 [
   'BeautifulProperties',
   'NamespacedWebStorage',
   'RecoveryStorage',
   'underscore',
-  'jquery',
   'module'
 ],
 function (
@@ -32,17 +11,53 @@ function (
           NamespacedWebStorage,
           RecoveryStorage,
           _,
-          $,
           module
 ) {
 
 
   var config = module.config();
   var initOptions = config.initOptions || Object.create(null);
+  function compareSemver(semver,operator,otherSemver) {
+    if (typeof semver === 'string') {
+      semver = semver.split('.').map(function (str) {
+        return Number(str)
+      });
+    }
+    if (typeof otherSemver === 'string') {
+      otherSemver = otherSemver.split('.').map(function (str) {
+        return Number(str)
+      });
+    }
+    "use strict";
+    switch (operator) {
+      case '==':
+      case '===':
+        return semver[0] === otherSemver[0] && semver[1] === otherSemver[1] && semver[2] === otherSemver[2];
+      case '>':
+      case '<':
+        return eval(('semver[0] OP otherSemver[0] ||'+
+        '(semver[0] === otherSemver[0] && semver[1] OP otherSemver[1]) ||'+
+        '(semver[0] === otherSemver[0] && semver[1] === otherSemver[1] && semver[2] OP otherSemver[2])').replace(/OP/g,operator));
+      case '>=':
+      case '<=':
+        return eval(('semver[0] OP otherSemver[0] ||'+
+        '(semver[0] === otherSemver[0] && semver[1] OP otherSemver[1]) ||'+
+        '(semver[0] === otherSemver[0] && semver[1] === otherSemver[1] && semver[2] OP= otherSemver[2])').replace(/OP/g,operator.replace('=','')));
+    }
+  }
+
+  if (compareSemver(BeautifulProperties.VERSION,'>=',[0,2,0])) {
+    throw new Error('BeautifulProperties 0.2.0 or above is not supported.');
+  }
 
   /**
-   * @name BeautifulHistory
-   * @namespace
+   * @namespace BeautifulHistory
+   * @version 0.0.3
+   * @author monjudoh
+   * @copyright <pre>(c) 2013 monjudoh
+   * Dual licensed under the MIT (MIT-LICENSE.txt)
+   * and GPL (GPL-LICENSE.txt) licenses.</pre>
+   * @see https://github.com/monjudoh/BeautifulHistory.js
    */
   var BeautifulHistory = Object.create(null);
   BeautifulProperties.Events.provideMethods(BeautifulHistory);
@@ -91,7 +106,8 @@ function (
    * @name maxIndex
    * @memberOf BeautifulHistory
    * @type number
-   * @description BeautifulHistoryで管理されているhistoryの最後尾の、initial setUp位置を0とした相対位置
+   * @description <pre>BeautifulHistoryで管理されているhistoryの最後尾の、initial setUp位置を0とした相対位置
+   * 未初期化時は-1を返す。</pre>
    */
   BeautifulProperties.Hookable.define(BeautifulHistory,'maxIndex',{
     get : function () {
@@ -127,6 +143,45 @@ function (
   BeautifulHistory.controllers = [];
   BeautifulHistory.types = Object.create(null);
   BeautifulHistory.duringSilentOperation = false;
+  var popstateHandlers = [];
+
+  /**
+   * @function BeautifulHistory~onPopstate
+   * @param {function} handler
+   * @description handlerをwindowにpopstate eventとして登録する。
+   * @private
+   */
+  function onPopstate(handler) {
+    if (popstateHandlers.indexOf(handler) !== -1) {
+      return;
+    }
+    window.addEventListener('popstate',handler,false);
+    popstateHandlers.push(handler);
+  }
+  /**
+   * @function BeautifulHistory~offPopstate
+   * @param {function=} handler
+   * @description <pre>windowにpopstate eventとして登録されたhandlerを削除する。
+   * handler未指定の場合はBeautifulHistory~onPopstateで登録済みのhandlerを全て削除する。</pre>
+   * @private
+   */
+  function offPopstate(handler) {
+    // all
+    if (!handler) {
+      popstateHandlers.forEach(function (handler) {
+        window.removeEventListener('popstate', handler, false);
+      });
+      popstateHandlers.length = 0;
+      return;
+    }
+    var index = popstateHandlers.indexOf(handler);
+    // no bound handler.
+    if (index === -1) {
+      return;
+    }
+    window.removeEventListener('popstate', handler, false);
+    popstateHandlers.slice(index,1);
+  }
   /**
    * @callback BeautifulHistory~factory
    * @param {*=} parentController push元のcontroller
@@ -146,9 +201,8 @@ function (
    * @description controllerに紐づくUIコンポーネントを非表示にする処理
    */
   /**
-   * @name register
+   * @function register
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {string} type
    * @param {{factory:BeautifulHistory~factory,show:BeautifulHistory~show,hide:BeautifulHistory~hide}} desc
@@ -170,27 +224,24 @@ function (
     BeautifulHistory.types[type] = desc;
   };
   /**
-   * @name setUp
+   * @function setUp
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {{namespace:string,whenBrowserRestart:string,redirectHtmlUrl:string=}} options
-   * @returns {promise}
-   * @description <br/>
-   * あるnamespaceでsetUpした後にブラウザ再起動をし初めて同一namespaceでsetUpしたとき、<br/>
-   * すなわちHistoryManagerで履歴を管理していたタブがブラウザ再起動によって再度開かれたときの動作はwhenBrowserRestartによって決定される。<br/>
-   *   backToPreviousDocument:HistoryManagerで履歴を管理していたdocumentに遷移してくる直前のdocumentまで戻る<br/>
-   *   redirect              :redirect用HTMLを使ったハックで履歴を消してリロードする<br/>
-   *   none                  :何もしない<br/>
-   * <br/>
-   * - redirectHtmlUrl<br/>
-   * - storageTruncate
+   * @returns {Promise}
+   * @description <pre>
+   * あるnamespaceでsetUpした後にブラウザ再起動をし初めて同一namespaceでsetUpしたとき、
+   * すなわちHistoryManagerで履歴を管理していたタブがブラウザ再起動によって再度開かれたときの動作はwhenBrowserRestartによって決定される。
+   *   backToPreviousDocument:HistoryManagerで履歴を管理していたdocumentに遷移してくる直前のdocumentまで戻る
+   *   redirect              :redirect用HTMLを使ったハックで履歴を消してリロードする
+   *   none                  :何もしない
    *
+   * - redirectHtmlUrl
+   * - storageTruncate
+   * </pre>
    */
   BeautifulHistory.setUp = function setUp(options){
     options = _.defaults(_.clone(options),initOptions);
-    var headDfd = $.Deferred();
-    var dfd = headDfd;
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.setUp(options)',options);
@@ -200,16 +251,21 @@ function (
     var storageTruncate = options.storageTruncate;
     recoveryStorage.truncate(storageTruncate,2);
     storage.truncate(storageTruncate,2);
-    dfd = dfd.then(function(type){
+    var headResolver;
+    var promise = new Promise(function(resolve,reject){
+      headResolver = resolve;
+    });
+    promise = promise.then(function(type){
       if (manager.debug) {
         console.log('BeautifulHistory.setUp type',type);
       }
-      var dfd = $.Deferred();
       // タブを閉じた場合・戻るボタンで一度に別ページまで遷移した場合はcurrentIndexの記録を削除する
       // ブラウザ再起動後にこのページが開かれるのは、起動直後ではなくて別ページからの遷移であるはずなので
-      $(window).on('unload',function(ev){
+      function unload(ev){
         recoveryStorage.removeItem('currentIndex');
-      });
+        window.removeEventListener('unload',unload,false);
+      }
+      window.addEventListener('unload',unload,false);
       manager.on('change:currentIndex',function(ev,currentIndex){
         recoveryStorage.setItem('currentIndex',currentIndex);
         storage.setItem('historyLength',history.length);
@@ -223,7 +279,7 @@ function (
         this.historySpecifiedStorage.setItem('maxIndex',maxIndex);
         recoveryStorage.setItem('maxIndex',maxIndex);
       });
-      return dfd.resolve(type).promise();
+      return Promise.resolve(type);
     });
 
     // ブラウザリロード時
@@ -246,10 +302,10 @@ function (
           }
           manager.controllers[state.index] = manager.createInfo(type, state.index, options);
           if (state.index === maxIndex) {
-            $(window).off('popstate', handler);
+            offPopstate(handler);
             manager.duringSilentOperation = false;
             manager.go(index).then(function(){
-              headDfd.resolve('restore');
+              headResolver('restore');
             });
             return;
           }
@@ -258,7 +314,7 @@ function (
           },16);
         }
         if (maxIndex !== 0) {
-          $(window).on('popstate',handler);
+          onPopstate(handler);
           if (index !== 0) {
             history.go(-index);
           } else {
@@ -269,7 +325,7 @@ function (
           handler();
         }
       })();
-      return dfd.promise();
+      return promise;
     }
     if (manager.debug) {
       console.log("BeautifulHistory.setUp recoveryStorage.getItem('currentIndex'),recoveryStorage.getItem('maxIndex')",recoveryStorage.getItem('currentIndex'),recoveryStorage.getItem('maxIndex'));
@@ -284,15 +340,15 @@ function (
         maxIndex = maxIndex !== undefined ? maxIndex : index;
         recoveryStorage.removeItem('maxIndex');
         function resolve(){
-          headDfd.resolve('browserRestart');
+          headResolver('browserRestart');
         }
         function goHandler(ev){
           if (ev) {
-            $(window).off('popstate', goHandler);
+            offPopstate(goHandler);
           }
-          manager.replace('empty',null,0);
+          manager.replace('empty',null,false,true);
           if (maxIndex !== 0) {
-            $(window).on('popstate', resolve);
+            onPopstate(resolve);
             manager.duringSilentOperation = false;
             manager.push('forceBack');
           } else {
@@ -303,12 +359,12 @@ function (
         if (index !== 0) {
           switch (options.whenBrowserRestart) {
             case 'backToPreviousDocument':
-              manager.backToPreviousDocument();
+              manager.backToPreviousDocument(false);
               break;
             case 'redirect':
               (function () {
                 function handler(){
-                  $(window).off('popstate',handler);
+                  offPopstate(handler);
                   var url = (function () {
                     var path_hash = location.href.replace(new RegExp('^'+location.origin),'');
                     var json = JSON.stringify([
@@ -337,7 +393,7 @@ function (
                     location.href = url;
                   },16);
                 }
-                $(window).on('popstate',handler);
+                onPopstate(handler);
                 history.go(-index);
               })();
               break;
@@ -353,53 +409,55 @@ function (
           goHandler();
         }
       })();
-      return dfd.promise();
+      return promise;
     }
 
     // whenBrowserRestart:'redirect'でskipされた所にforwardで戻ってきてしまった場合
     if (!history.state && storage.getItem('historyLength') === history.length) {
       (function () {
         manager.historyId = Date.now();
-        manager.replace('empty',null,0);
+        manager.replace('empty',null,false,true);
         function resolve() {
-          headDfd.resolve('initial');
+          headResolver('initial');
         }
-        $(window).on('popstate', resolve);
+        onPopstate(resolve);
         manager.duringSilentOperation = false;
         manager.push('forceBack');
       })();
-      return dfd.promise();
+      return promise;
     }
 
     // 外部からの遷移直後
     if (!history.state) {
       (function () {
         manager.historyId = Date.now();
-        manager.replace('empty',null,0);
-        headDfd.resolve('initial');
+        manager.replace('empty',null,false,true);
+        headResolver('initial');
       })();
-      return dfd.promise();
+      return promise;
     }
     // なし
   };
   /**
-   * @name replace
+   * @function replace
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {string} type
    * @param {*=} options
-   * @param {number=} index 未指定の場合はcurrentIndex
-   * @description indexの位置のcontrollerを指定したtype/optionsのものに置き換える。<br/>
+   * @param {boolean=} silently trueの場合はinfoとstateの書き換えのみ行い表示には反映させない。未指定の場合はfalse。
+   * @param {boolean=} initialize 初期化の場合trueを指定する。基本的にアプリケーションコードでは使わない。
+   * @description this.currentIndex(初期化の場合は0)の位置のcontrollerを指定したtype/optionsのものに置き換える。<br/>
    * replace元とtypeが同じ場合は保存されたoptionsを置き換えるだけでcontrollerの再作成はしない。<br/>
    * 未表示の場合は表示する。
    */
-  BeautifulHistory.replace = function replace(type,options,index) {
+  BeautifulHistory.replace = function replace(type,options,silently,initialize) {
+    silently = silently !== undefined ? silently : false;
+    initialize = initialize !== undefined ? initialize : false;
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.replace(type,options)', type, options);
     }
-    var index = typeof index === 'number' ? index : this.currentIndex;
+    var index = initialize ? 0 : this.currentIndex;
     var info = this.controllers[index];
     // replace元とtypeが同じ場合のみ再利用する
     var isReuse = info && info.type === type;
@@ -408,7 +466,7 @@ function (
     } else {
       info = this.createInfo(type, index, options);
     }
-    if (!info.isShown) {
+    if (!info.isShown && !silently) {
       var controller = info.controller;
       var showCallback = manager.types[type].show;
       showCallback(controller,options);
@@ -418,12 +476,11 @@ function (
       }
       manager.trigger('show',type,controller);
     }
-    history.replaceState(manager.convertInfoToState(info,index));
+    history.replaceState(manager.convertInfoToState(info,index),null);
   };
   /**
-   * @name push
+   * @function push
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {string} type
    * @param {*=} options
@@ -439,19 +496,18 @@ function (
     var index = this.currentIndex + 1;
     var info = this.createInfo(type, index, options, {isShown: true});
     this.controllers.push(info);
-    history.pushState(this.convertInfoToState(info,index));
+    history.pushState(this.convertInfoToState(info,index),null);
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
   };
 
   /**
-   * @name go
+   * @function go
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {number} index 遷移先index
    * @param {boolean=} silently デフォルト値false
-   * @returns {promise}
+   * @returns {Promise}
    */
   BeautifulHistory.go = function go(index,silently) {
     silently = silently !== undefined ? silently : false;
@@ -460,27 +516,29 @@ function (
       console.info('BeautifulHistory.go(index,silently)',index,silently);
     }
     var currentIndex = manager.getSilently('currentIndex');
-    var dfd = $.Deferred();
     if (currentIndex === index) {
-      return dfd.resolve().promise();
+      return Promise.resolve();
     }
     if (silently) {
       manager.duringSilentOperation = true;
     }
+    var resolve;
+    var promise = new Promise(function(resolve_,reject){
+      resolve = resolve_;
+    });
     function handler(){
-      $(window).off('popstate',handler);
+      offPopstate(handler);
       if (silently) {
         manager.duringSilentOperation = false;
       }
-      dfd.resolve();
+      resolve();
     }
-    $(window).on('popstate',handler);
+    onPopstate(handler);
     history.go(index - currentIndex);
-    return dfd.promise();
+    return promise;
   };
-  $(window).on('popstate',function(jqEv){
+  onPopstate(function(ev){
     var manager = BeautifulHistory;
-    var ev = jqEv.originalEvent;
     if (manager.debug) {
       console.log('BeautifulHistory popstate ev.state,history.state,manager.duringSilentOperation',ev.state,history.state,manager.duringSilentOperation);
     }
@@ -490,49 +548,58 @@ function (
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
   });
   /**
-   * @name collapse
+   * @function collapse
    * @memberOf BeautifulHistory
-   * @function
    *
    * @param {number} startIndex
    * @param {number} endIndex
-   * @returns {promise}
+   * @returns {Promise}
    * @description historyの圧縮を行う。<br/>
    * startIndex〜endIndexの履歴をendIndex1個に置き換える。<br/>
    * endIndexが末尾の場合は一つ前に即座に戻るforceBackをpushしておく。<br/>
+   * 圧縮後、圧縮前のcurrentIndexに対応するindexに移動する。
    */
   BeautifulHistory.collapse = function collapse(startIndex,endIndex) {
-    var dfd = $.Deferred();
+    var resolve;
+    var promise = new Promise(function(resolve_,reject){
+      resolve = resolve_;
+    });
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.collapse(startIndex, endIndex)', startIndex, endIndex);
     }
     var currentIndex = this.currentIndex;
+    var indexAfterCollapse;
+    if (currentIndex < startIndex) {
+      indexAfterCollapse = currentIndex
+    } else if(currentIndex > endIndex) {
+      indexAfterCollapse = currentIndex - endIndex + startIndex;
+    } else {
+      indexAfterCollapse = startIndex;
+    }
     manager.duringSilentOperation = true;
     manager.controllers.splice(startIndex,(endIndex - startIndex));
-    $(window).on('popstate',didBackToStartIndex);
+    onPopstate(didBackToStartIndex);
     history.go(startIndex - currentIndex);
 
-    function didBackToStartIndex(jqEv){
-      $(window).off('popstate',didBackToStartIndex);
+    function didBackToStartIndex(ev){
+      offPopstate(didBackToStartIndex);
       (function (info) {
-        history.replaceState(manager.convertInfoToState(info,startIndex));
+        history.replaceState(manager.convertInfoToState(info,startIndex),null);
       })(manager.controllers[startIndex]);
       if (manager.controllers.length === startIndex + 1) {
         // 後続はない
         manager.duringSilentOperation = false;
-        $(window).on('popstate',didPopFromForceBack);
+        onPopstate(didPopFromForceBack);
         manager.push('forceBack');
         return;
       }
       push();
     }
-    function didPopFromForceBack(jqEv){
-      $(window).off('popstate',didPopFromForceBack);
+    function didPopFromForceBack(ev){
+      offPopstate(didPopFromForceBack);
       BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
-      setTimeout(function(){
-        dfd.resolve();
-      },16);
+      setTimeout(resolve,16);
     }
     function push(){
       var currentIndex = manager.getSilently('currentIndex');
@@ -544,28 +611,64 @@ function (
       if (manager.controllers.length === nextIndex) {
         // 後続はない
         manager.duringSilentOperation = false;
-        dfd.resolve();
+        resolve();
         return;
       }
       (function (info) {
-        history.pushState(manager.convertInfoToState(info,nextIndex));
+        history.pushState(manager.convertInfoToState(info,nextIndex),null);
       })(manager.controllers[nextIndex]);
       push();
     }
-    return dfd.promise();
+
+    return promise.then(function done(){
+      return manager.go(indexAfterCollapse);
+    });
   };
   /**
-   * @name backToPreviousDocument
+   * @name existsPreviousDocument
    * @memberOf BeautifulHistory
-   * @function
-   * @description 現documentに遷移してくる前のdocumentまで戻る
+   * @type boolean
+   * @description <pre>現documentに遷移してくる前のdocumentが存在しているかどうか
+   * 前のdocumentが存在しているならtrue、存在しないことが分かっているか不明ならfalse
+   * なお、現在の実装では次documentが存在している場合は正確に判定できない。
+   * </pre>
    */
-  BeautifulHistory.backToPreviousDocument = function backToPreviousDocument(){
-    $(window).off('popstate');
-    $(window).on('popstate',function(){
+  Object.defineProperty(BeautifulHistory,'existsPreviousDocument',{
+    get:function(){
+      var maxIndex = BeautifulHistory.getSilently('maxIndex');
+      // 未初期化時にはPreviousDocument
+      if (maxIndex === -1) {
+        return false;
+      }
+      // これらが同値ならPreviousDocumentは存在しない
+      return history.length !== (BeautifulHistory.maxIndex + 1);
+    }
+  });
+  /**
+   * @function backToPreviousDocument
+   * @memberOf BeautifulHistory
+   * @param {boolean=} useCurrentIndex default:true
+   * @description <pre>現documentに遷移してくる前のdocumentまで戻る
+   * useCurrentIndex===true  : currentIndex前が現documentの最初だと言えるのでcurrentIndex + 1戻る
+   * useCurrentIndex===false : 前documentまで戻り現documentから抜けるとcontextが変わり、現documentのJSは実行されなくなるはずなので、
+   *                           popstate eventで再帰的に戻っていくと前documentに戻るまで実行されることが期待されるので、そのようにする。
+   * </pre>
+   */
+  BeautifulHistory.backToPreviousDocument = function backToPreviousDocument(useCurrentIndex){
+    useCurrentIndex = useCurrentIndex !== undefined ? useCurrentIndex : true;
+    if (useCurrentIndex) {
+      var currentIndex = BeautifulHistory.getSilently('currentIndex');
+      if (currentIndex >= 0) {
+        offPopstate();
+        history.go(-(currentIndex + 1));
+      }
+    } else {
+      offPopstate();
+      onPopstate(function(){
+        history.back();
+      });
       history.back();
-    });
-    history.back();
+    }
   };
   BeautifulHistory.createInfo = function createInfo(type, index, options, override){
     override = override || Object.create(null);

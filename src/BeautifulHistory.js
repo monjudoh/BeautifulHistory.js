@@ -627,8 +627,9 @@ function (
   /**
    * @name existsPreviousDocument
    * @memberOf BeautifulHistory
-   * @type boolean 前のdocumentが存在しているならtrue、存在しないことが分かっているか不明ならfalse
+   * @type boolean
    * @description <pre>現documentに遷移してくる前のdocumentが存在しているかどうか
+   * 前のdocumentが存在しているならtrue、存在しないことが分かっているか不明ならfalse
    * なお、現在の実装では次documentが存在している場合は正確に判定できない。
    * </pre>
    */

@@ -17,6 +17,38 @@ function (
 
   var config = module.config();
   var initOptions = config.initOptions || Object.create(null);
+  function compareSemver(semver,operator,otherSemver) {
+    if (typeof semver === 'string') {
+      semver = semver.split('.').map(function (str) {
+        return Number(str)
+      });
+    }
+    if (typeof otherSemver === 'string') {
+      otherSemver = otherSemver.split('.').map(function (str) {
+        return Number(str)
+      });
+    }
+    "use strict";
+    switch (operator) {
+      case '==':
+      case '===':
+        return semver[0] === otherSemver[0] && semver[1] === otherSemver[1] && semver[2] === otherSemver[2];
+      case '>':
+      case '<':
+        return eval(('semver[0] OP otherSemver[0] ||'+
+        '(semver[0] === otherSemver[0] && semver[1] OP otherSemver[1]) ||'+
+        '(semver[0] === otherSemver[0] && semver[1] === otherSemver[1] && semver[2] OP otherSemver[2])').replace(/OP/g,operator));
+      case '>=':
+      case '<=':
+        return eval(('semver[0] OP otherSemver[0] ||'+
+        '(semver[0] === otherSemver[0] && semver[1] OP otherSemver[1]) ||'+
+        '(semver[0] === otherSemver[0] && semver[1] === otherSemver[1] && semver[2] OP= otherSemver[2])').replace(/OP/g,operator.replace('=','')));
+    }
+  }
+
+  if (compareSemver(BeautifulProperties.VERSION,'>=',[0,2,0])) {
+    throw new Error('BeautifulProperties 0.2.0 or above is not supported.');
+  }
 
   /**
    * @namespace BeautifulHistory

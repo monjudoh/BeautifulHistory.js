@@ -74,7 +74,8 @@ function (
    * @name maxIndex
    * @memberOf BeautifulHistory
    * @type number
-   * @description BeautifulHistoryで管理されているhistoryの最後尾の、initial setUp位置を0とした相対位置
+   * @description <pre>BeautifulHistoryで管理されているhistoryの最後尾の、initial setUp位置を0とした相対位置
+   * 未初期化時は-1を返す。</pre>
    */
   BeautifulProperties.Hookable.define(BeautifulHistory,'maxIndex',{
     get : function () {
@@ -591,6 +592,25 @@ function (
       return manager.go(indexAfterCollapse);
     });
   };
+  /**
+   * @name existsPreviousDocument
+   * @memberOf BeautifulHistory
+   * @type boolean 前のdocumentが存在しているならtrue、存在しないことが分かっているか不明ならfalse
+   * @description <pre>現documentに遷移してくる前のdocumentが存在しているかどうか
+   * なお、現在の実装では次documentが存在している場合は正確に判定できない。
+   * </pre>
+   */
+  Object.defineProperty(BeautifulHistory,'existsPreviousDocument',{
+    get:function(){
+      var maxIndex = BeautifulHistory.getSilently('maxIndex');
+      // 未初期化時にはPreviousDocument
+      if (maxIndex === -1) {
+        return false;
+      }
+      // これらが同値ならPreviousDocumentは存在しない
+      return history.length !== (BeautifulHistory.maxIndex + 1);
+    }
+  });
   /**
    * @function backToPreviousDocument
    * @memberOf BeautifulHistory

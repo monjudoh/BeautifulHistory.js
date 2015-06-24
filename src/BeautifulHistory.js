@@ -740,22 +740,30 @@ function (
     if (manager.debug) {
       console.log('hideControllers range',range);
     }
-    range.map(function(index){
+    var infoList = range.map(function(index){
       return BeautifulHistory.controllers[index];
-    }).forEach(function(info,index){
-      index = range[index];
-      if (manager.debug) {
-        console.log('hideControllers info, index', _.clone(info), index);
-      }
-      if (!info || !info.isShown) {
-        return;
-      }
-      var hideCallback = (BeautifulHistory.types[info.type].hide);
-      var options = info.options;
-      hideCallback(info.controller,options);
-      info.isShown = false;
     });
-    return Promise.resolve();
+    infoList.unshift(Promise.resolve());
+    return infoList.reduce(function(promise,info){
+      if (!info || !info.isShown) {
+        return promise;
+      }
+      return promise.then(function(){
+        if (manager.debug) {
+          console.log('hideControllers info', _.clone(info));
+        }
+        var hideCallback = manager.types[info.type].hide;
+        var options = info.options;
+        var callbackResult = hideCallback(info.controller, options);
+        if (manager.debug) {
+          console.log('showControllers callbackResult',callbackResult);
+        }
+        return callbackResult;
+      }).then(function(){
+        info.isShown = false;
+        manager.trigger('hide',info.type,info.controller);
+      });
+    });
   }
   function showControllers(currentIndex,previousIndex){
     var manager = this;
@@ -768,23 +776,30 @@ function (
     if (manager.debug) {
       console.log('showControllers range',range);
     }
-    range.map(function(index){
+    var infoList = range.map(function(index){
       return BeautifulHistory.controllers[index];
-    }).forEach(function(info,index){
-      index = range[index];
-      if (manager.debug) {
-        console.log('showControllers info, index',info, index);
-      }
-      if (!info) {
-        return;
-      }
-      var showCallback = manager.types[info.type].show;
-      var options = info.options;
-      showCallback(info.controller,options);
-      info.isShown = true;
-      manager.trigger('show',info.type,info.controller);
     });
-    return Promise.resolve();
+    infoList.unshift(Promise.resolve());
+    return infoList.reduce(function(promise,info){
+      if (!info || info.isShown) {
+        return promise;
+      }
+      return promise.then(function(){
+        if (manager.debug) {
+          console.log('showControllers info',info);
+        }
+        var showCallback = manager.types[info.type].show;
+        var options = info.options;
+        var callbackResult = showCallback(info.controller, options);
+        if (manager.debug) {
+          console.log('showControllers callbackResult',callbackResult);
+        }
+        return callbackResult;
+      }).then(function(){
+        info.isShown = true;
+        manager.trigger('show',info.type,info.controller);
+      });
+    });
   }
 
   BeautifulHistory.on('show',function onShow(ev,type,controller){

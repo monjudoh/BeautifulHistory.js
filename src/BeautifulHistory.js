@@ -52,7 +52,7 @@ function (
 
   /**
    * @namespace BeautifulHistory
-   * @version 0.0.3
+   * @version 0.0.4
    * @author monjudoh
    * @copyright <pre>(c) 2013 monjudoh
    * Dual licensed under the MIT (MIT-LICENSE.txt)
@@ -484,13 +484,30 @@ function (
    *
    * @param {string} type
    * @param {*=} options
+   * @param {boolean=} silently
+   * @returns {Promise}
    * @description currentIndexの次の位置に新しいcontrollerを追加する。
    */
-  BeautifulHistory.push = function push(type,options) {
+  BeautifulHistory.push = function push(type,options,silently) {
+    silently = silently !== undefined ? silently : false;
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.push(type,options)', type, options);
     }
+    if (silently) {
+      manager.duringSilentOperation = true;
+    }
+    var resolve;
+    var promise = new Promise(function(resolve_,reject){
+      resolve = resolve_;
+    });
+    manager.on('didFinishIndexChangedOperation',function handler(ev){
+      manager.off('didFinishIndexChangedOperation',handler);
+      if (silently) {
+        manager.duringSilentOperation = false;
+      }
+      resolve();
+    });
     // controllersのcurrentIndex以降をtruncateする
     this.controllers.length = this.currentIndex + 1;
     var index = this.currentIndex + 1;
@@ -499,6 +516,7 @@ function (
     history.pushState(this.convertInfoToState(info,index),null);
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
+    return promise;
   };
 
   /**
@@ -526,14 +544,13 @@ function (
     var promise = new Promise(function(resolve_,reject){
       resolve = resolve_;
     });
-    function handler(){
-      offPopstate(handler);
+    manager.on('didFinishIndexChangedOperation',function handler(ev){
+      manager.off('didFinishIndexChangedOperation',handler);
       if (silently) {
         manager.duringSilentOperation = false;
       }
       resolve();
-    }
-    onPopstate(handler);
+    });
     history.go(index - currentIndex);
     return promise;
   };
@@ -541,9 +558,6 @@ function (
     var manager = BeautifulHistory;
     if (manager.debug) {
       console.log('BeautifulHistory popstate ev.state,history.state,manager.duringSilentOperation',ev.state,history.state,manager.duringSilentOperation);
-    }
-    if (manager.duringSilentOperation) {
-      return;
     }
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
   });
@@ -695,63 +709,98 @@ function (
   BeautifulHistory.on('change:currentIndex',function(ev,currentIndex,previousIndex){
     var manager = this;
     if (manager.debug) {
-      console.log('change:currentIndex(decrement) currentIndex, previousIndex',currentIndex, previousIndex);
+      console.log('change:currentIndex currentIndex, previousIndex',currentIndex, previousIndex);
     }
-    if (currentIndex === -1 || previousIndex === undefined || currentIndex >= previousIndex) {
+    if (manager.duringSilentOperation) {
+      manager.trigger('didFinishIndexChangedOperation');
       return;
     }
+    // index増
+    if (currentIndex > (previousIndex || 0)) {
+      showControllers.call(this, currentIndex, (previousIndex || 0)).then(function(){
+        manager.trigger('didFinishIndexChangedOperation')
+      });
+      return;
+    }
+    // index減
+    if (currentIndex >= 0 && previousIndex !== undefined && currentIndex < previousIndex) {
+      hideControllers.call(this, currentIndex, previousIndex).then(function(){
+        manager.trigger('didFinishIndexChangedOperation')
+      });
+    }
+  });
+  function hideControllers(currentIndex,previousIndex){
+    var manager = this;
+    if (manager.debug) {
+      console.log('hideControllers currentIndex, previousIndex',currentIndex, previousIndex);
+    }
+    // indexの減分に相当するcontrollerを閉じる
     // 減った
     var range = _.range(currentIndex + 1, previousIndex + 1).reverse();
     if (manager.debug) {
-      console.log('change:currentIndex(decrement) range',range);
+      console.log('hideControllers range',range);
     }
-    range.map(function(index){
+    var infoList = range.map(function(index){
       return BeautifulHistory.controllers[index];
-    }).forEach(function(info,index){
-      index = range[index];
-      if (manager.debug) {
-        console.log('change:currentIndex(decrement) info, index', _.clone(info), index);
-      }
-      if (!info || !info.isShown) {
-        return;
-      }
-      var hideCallback = (BeautifulHistory.types[info.type].hide);
-      var options = info.options;
-      hideCallback(info.controller,options);
-      info.isShown = false;
     });
-  });
-  BeautifulHistory.on('change:currentIndex',function(ev,currentIndex,previousIndex){
+    infoList.unshift(Promise.resolve());
+    return infoList.reduce(function(promise,info){
+      if (!info || !info.isShown) {
+        return promise;
+      }
+      return promise.then(function(){
+        if (manager.debug) {
+          console.log('hideControllers info', _.clone(info));
+        }
+        var hideCallback = manager.types[info.type].hide;
+        var options = info.options;
+        var callbackResult = hideCallback(info.controller, options);
+        if (manager.debug) {
+          console.log('showControllers callbackResult',callbackResult);
+        }
+        return callbackResult;
+      }).then(function(){
+        info.isShown = false;
+        manager.trigger('hide',info.type,info.controller);
+      });
+    });
+  }
+  function showControllers(currentIndex,previousIndex){
     var manager = this;
     if (manager.debug) {
-      console.log('change:currentIndex(increment) currentIndex, previousIndex',currentIndex, previousIndex);
+      console.log('showControllers currentIndex, previousIndex',currentIndex, previousIndex);
     }
-    previousIndex = previousIndex || 0;
-    if (currentIndex < previousIndex) {
-      return;
-    }
+    // indexの増分に相当するcontrollerを表示する
     // 増えた
     var range = _.range(previousIndex + 1,currentIndex + 1);
     if (manager.debug) {
-      console.log('change:currentIndex(increment) range',range);
+      console.log('showControllers range',range);
     }
-    range.map(function(index){
+    var infoList = range.map(function(index){
       return BeautifulHistory.controllers[index];
-    }).forEach(function(info,index){
-      index = range[index];
-      if (manager.debug) {
-        console.log('change:currentIndex(increment) info, index',info, index);
-      }
-      if (!info) {
-        return;
-      }
-      var showCallback = manager.types[info.type].show;
-      var options = info.options;
-      showCallback(info.controller,options);
-      info.isShown = true;
-      manager.trigger('show',info.type,info.controller);
     });
-  });
+    infoList.unshift(Promise.resolve());
+    return infoList.reduce(function(promise,info){
+      if (!info || info.isShown) {
+        return promise;
+      }
+      return promise.then(function(){
+        if (manager.debug) {
+          console.log('showControllers info',info);
+        }
+        var showCallback = manager.types[info.type].show;
+        var options = info.options;
+        var callbackResult = showCallback(info.controller, options);
+        if (manager.debug) {
+          console.log('showControllers callbackResult',callbackResult);
+        }
+        return callbackResult;
+      }).then(function(){
+        info.isShown = true;
+        manager.trigger('show',info.type,info.controller);
+      });
+    });
+  }
 
   BeautifulHistory.on('show',function onShow(ev,type,controller){
     this.trigger('show:'+type,controller);

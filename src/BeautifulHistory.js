@@ -717,7 +717,7 @@ function (
     }
     // index増
     if (currentIndex > (previousIndex || 0)) {
-      showControllers.call(this, currentIndex, previousIndex).then(function(){
+      showControllers.call(this, currentIndex, (previousIndex || 0)).then(function(){
         manager.trigger('didFinishIndexChangedOperation')
       });
       return;

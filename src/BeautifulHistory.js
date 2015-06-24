@@ -542,9 +542,6 @@ function (
     if (manager.debug) {
       console.log('BeautifulHistory popstate ev.state,history.state,manager.duringSilentOperation',ev.state,history.state,manager.duringSilentOperation);
     }
-    if (manager.duringSilentOperation) {
-      return;
-    }
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
   });
   /**
@@ -695,22 +692,38 @@ function (
   BeautifulHistory.on('change:currentIndex',function(ev,currentIndex,previousIndex){
     var manager = this;
     if (manager.debug) {
-      console.log('change:currentIndex(decrement) currentIndex, previousIndex',currentIndex, previousIndex);
+      console.log('change:currentIndex currentIndex, previousIndex',currentIndex, previousIndex);
     }
-    if (currentIndex === -1 || previousIndex === undefined || currentIndex >= previousIndex) {
+    if (manager.duringSilentOperation) {
       return;
     }
+    // index増
+    if (currentIndex > (previousIndex || 0)) {
+      showControllers.call(this, currentIndex, previousIndex);
+      return;
+    }
+    // index減
+    if (currentIndex >= 0 && previousIndex !== undefined && currentIndex < previousIndex) {
+      hideControllers.call(this, currentIndex, previousIndex);
+    }
+  });
+  function hideControllers(currentIndex,previousIndex){
+    var manager = this;
+    if (manager.debug) {
+      console.log('hideControllers currentIndex, previousIndex',currentIndex, previousIndex);
+    }
+    // indexの減分に相当するcontrollerを閉じる
     // 減った
     var range = _.range(currentIndex + 1, previousIndex + 1).reverse();
     if (manager.debug) {
-      console.log('change:currentIndex(decrement) range',range);
+      console.log('hideControllers range',range);
     }
     range.map(function(index){
       return BeautifulHistory.controllers[index];
     }).forEach(function(info,index){
       index = range[index];
       if (manager.debug) {
-        console.log('change:currentIndex(decrement) info, index', _.clone(info), index);
+        console.log('hideControllers info, index', _.clone(info), index);
       }
       if (!info || !info.isShown) {
         return;
@@ -720,27 +733,24 @@ function (
       hideCallback(info.controller,options);
       info.isShown = false;
     });
-  });
-  BeautifulHistory.on('change:currentIndex',function(ev,currentIndex,previousIndex){
+  }
+  function showControllers(currentIndex,previousIndex){
     var manager = this;
     if (manager.debug) {
-      console.log('change:currentIndex(increment) currentIndex, previousIndex',currentIndex, previousIndex);
+      console.log('showControllers currentIndex, previousIndex',currentIndex, previousIndex);
     }
-    previousIndex = previousIndex || 0;
-    if (currentIndex < previousIndex) {
-      return;
-    }
+    // indexの増分に相当するcontrollerを表示する
     // 増えた
     var range = _.range(previousIndex + 1,currentIndex + 1);
     if (manager.debug) {
-      console.log('change:currentIndex(increment) range',range);
+      console.log('showControllers range',range);
     }
     range.map(function(index){
       return BeautifulHistory.controllers[index];
     }).forEach(function(info,index){
       index = range[index];
       if (manager.debug) {
-        console.log('change:currentIndex(increment) info, index',info, index);
+        console.log('showControllers info, index',info, index);
       }
       if (!info) {
         return;
@@ -751,7 +761,7 @@ function (
       info.isShown = true;
       manager.trigger('show',info.type,info.controller);
     });
-  });
+  }
 
   BeautifulHistory.on('show',function onShow(ev,type,controller){
     this.trigger('show:'+type,controller);

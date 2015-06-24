@@ -484,13 +484,30 @@ function (
    *
    * @param {string} type
    * @param {*=} options
+   * @param {boolean=} silently
+   * @returns {Promise}
    * @description currentIndexの次の位置に新しいcontrollerを追加する。
    */
-  BeautifulHistory.push = function push(type,options) {
+  BeautifulHistory.push = function push(type,options,silently) {
+    silently = silently !== undefined ? silently : false;
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.push(type,options)', type, options);
     }
+    if (silently) {
+      manager.duringSilentOperation = true;
+    }
+    var resolve;
+    var promise = new Promise(function(resolve_,reject){
+      resolve = resolve_;
+    });
+    manager.on('didFinishIndexChangedOperation',function handler(ev){
+      manager.off('didFinishIndexChangedOperation',handler);
+      if (silently) {
+        manager.duringSilentOperation = false;
+      }
+      resolve();
+    });
     // controllersのcurrentIndex以降をtruncateする
     this.controllers.length = this.currentIndex + 1;
     var index = this.currentIndex + 1;
@@ -499,6 +516,7 @@ function (
     history.pushState(this.convertInfoToState(info,index),null);
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'maxIndex');
+    return promise;
   };
 
   /**

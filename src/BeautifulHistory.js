@@ -526,14 +526,13 @@ function (
     var promise = new Promise(function(resolve_,reject){
       resolve = resolve_;
     });
-    function handler(){
-      offPopstate(handler);
+    manager.on('didFinishIndexChangedOperation',function handler(ev){
+      manager.off('didFinishIndexChangedOperation',handler);
       if (silently) {
         manager.duringSilentOperation = false;
       }
       resolve();
-    }
-    onPopstate(handler);
+    });
     history.go(index - currentIndex);
     return promise;
   };
@@ -695,16 +694,21 @@ function (
       console.log('change:currentIndex currentIndex, previousIndex',currentIndex, previousIndex);
     }
     if (manager.duringSilentOperation) {
+      manager.trigger('didFinishIndexChangedOperation');
       return;
     }
     // index増
     if (currentIndex > (previousIndex || 0)) {
-      showControllers.call(this, currentIndex, previousIndex);
+      showControllers.call(this, currentIndex, previousIndex).then(function(){
+        manager.trigger('didFinishIndexChangedOperation')
+      });
       return;
     }
     // index減
     if (currentIndex >= 0 && previousIndex !== undefined && currentIndex < previousIndex) {
-      hideControllers.call(this, currentIndex, previousIndex);
+      hideControllers.call(this, currentIndex, previousIndex).then(function(){
+        manager.trigger('didFinishIndexChangedOperation')
+      });
     }
   });
   function hideControllers(currentIndex,previousIndex){
@@ -733,6 +737,7 @@ function (
       hideCallback(info.controller,options);
       info.isShown = false;
     });
+    return Promise.resolve();
   }
   function showControllers(currentIndex,previousIndex){
     var manager = this;
@@ -761,6 +766,7 @@ function (
       info.isShown = true;
       manager.trigger('show',info.type,info.controller);
     });
+    return Promise.resolve();
   }
 
   BeautifulHistory.on('show',function onShow(ev,type,controller){

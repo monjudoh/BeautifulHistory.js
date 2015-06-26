@@ -329,6 +329,7 @@ function (
     }
     if (manager.debug) {
       console.log("BeautifulHistory.setUp recoveryStorage.getItem('currentIndex'),recoveryStorage.getItem('maxIndex')",recoveryStorage.getItem('currentIndex'),recoveryStorage.getItem('maxIndex'));
+      console.log('BeautifulHistory.setUp history.state,history.length',history.state,history.length);
     }
     // ブラウザ再起動直後
     if (!history.state && recoveryStorage.getItem('currentIndex') !== undefined) {
@@ -511,7 +512,8 @@ function (
     // controllersのcurrentIndex以降をtruncateする
     this.controllers.length = this.currentIndex + 1;
     var index = this.currentIndex + 1;
-    var info = this.createInfo(type, index, options, {isShown: true});
+    // silentlyであれば暗黙的にshowされた事になっている。そうでなければshowControllersでshowされる。
+    var info = this.createInfo(type, index, options, {isShown: silently});
     this.controllers.push(info);
     history.pushState(this.convertInfoToState(info,index),null);
     BeautifulProperties.Hookable.Get.refreshProperty(BeautifulHistory,'currentIndex');
@@ -781,6 +783,9 @@ function (
     });
     infoList.unshift(Promise.resolve());
     return infoList.reduce(function(promise,info){
+      if (manager.debug) {
+        console.log('showControllers info',info);
+      }
       if (!info || info.isShown) {
         return promise;
       }

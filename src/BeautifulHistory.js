@@ -52,7 +52,7 @@ function (
 
   /**
    * @namespace BeautifulHistory
-   * @version 0.0.4
+   * @version 0.0.5
    * @author monjudoh
    * @copyright <pre>(c) 2013 monjudoh
    * Dual licensed under the MIT (MIT-LICENSE.txt)

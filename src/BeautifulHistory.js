@@ -46,13 +46,13 @@ function (
     }
   }
 
-  if (compareSemver(BeautifulProperties.VERSION,'>=',[0,2,0])) {
-    throw new Error('BeautifulProperties 0.2.0 or above is not supported.');
+  if (compareSemver(BeautifulProperties.VERSION,'<',[0,2,0])) {
+    throw new Error('BeautifulProperties 0.2.0 or above is required by BeautifulHistory 0.2.0.');
   }
 
   /**
    * @namespace BeautifulHistory
-   * @version 0.0.5
+   * @version 0.2.0
    * @author monjudoh
    * @copyright <pre>(c) 2013 monjudoh
    * Dual licensed under the MIT (MIT-LICENSE.txt)
@@ -266,7 +266,7 @@ function (
         window.removeEventListener('unload',unload,false);
       }
       window.addEventListener('unload',unload,false);
-      manager.on('change:currentIndex',function(ev,currentIndex){
+      manager.on(['change:currentIndex','init:currentIndex'],function(ev,currentIndex){
         recoveryStorage.setItem('currentIndex',currentIndex);
         storage.setItem('historyLength',history.length);
       });
@@ -275,7 +275,7 @@ function (
       recoveryStorage.truncate(storageTruncate,2);
       storage.truncate(storageTruncate,2);
       manager.historySpecifiedStorage.setItem('maxIndex',manager.maxIndex);
-      manager.on('change:maxIndex',function(ev,maxIndex){
+      manager.on(['change:maxIndex','init:maxIndex'],function(ev,maxIndex){
         this.historySpecifiedStorage.setItem('maxIndex',maxIndex);
         recoveryStorage.setItem('maxIndex',maxIndex);
       });
@@ -708,7 +708,7 @@ function (
       historyId:this.historyId
     }
   };
-  BeautifulHistory.on('change:currentIndex',function(ev,currentIndex,previousIndex){
+  BeautifulHistory.on(['change:currentIndex','init:currentIndex'],function(ev,currentIndex,previousIndex){
     var manager = this;
     if (manager.debug) {
       console.log('change:currentIndex currentIndex, previousIndex',currentIndex, previousIndex);

@@ -283,7 +283,8 @@ function (
     });
 
     // ブラウザリロード時
-    if (history.state) {
+    var existsState = history.state;
+    if (existsState) {
       // リストア
       (function () {
         manager.duringSilentOperation = true;
@@ -332,7 +333,7 @@ function (
       console.log('BeautifulHistory.setUp history.state,history.length',history.state,history.length);
     }
     // ブラウザ再起動直後
-    if (!history.state && recoveryStorage.getItem('currentIndex') !== undefined) {
+    if (!existsState && recoveryStorage.getItem('currentIndex') !== undefined) {
       (function () {
         manager.duringSilentOperation = true;
         var index = recoveryStorage.getItem('currentIndex');
@@ -414,7 +415,7 @@ function (
     }
 
     // whenBrowserRestart:'redirect'でskipされた所にforwardで戻ってきてしまった場合
-    if (!history.state && storage.getItem('historyLength') === history.length) {
+    if (!existsState && storage.getItem('historyLength') === history.length) {
       (function () {
         manager.historyId = Date.now();
         manager.replace('empty',null,false,true);
@@ -429,7 +430,7 @@ function (
     }
 
     // 外部からの遷移直後
-    if (!history.state) {
+    if (!existsState) {
       (function () {
         manager.historyId = Date.now();
         manager.replace('empty',null,false,true);

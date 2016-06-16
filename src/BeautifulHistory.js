@@ -52,7 +52,7 @@ function (
 
   /**
    * @namespace BeautifulHistory
-   * @version 0.2.0
+   * @version 0.2.1
    * @author monjudoh
    * @copyright <pre>(c) 2013 monjudoh
    * Dual licensed under the MIT (MIT-LICENSE.txt)
@@ -213,14 +213,14 @@ function (
     if (manager.debug) {
       console.info('BeautifulHistory.register(type,desc)',type,desc);
     }
-    desc = _.defaults(_.clone(desc),{
+    desc = Object.assign(Object.create(null),{
       factory : function (parentController,options) {
       },
       show :function (controller,options) {
       },
       hide : function (controller,options) {
       }
-    });
+    },desc);
     BeautifulHistory.types[type] = desc;
   };
   /**
@@ -241,7 +241,7 @@ function (
    * </pre>
    */
   BeautifulHistory.setUp = function setUp(options){
-    options = _.defaults(_.clone(options),initOptions);
+    options = Object.assign(Object.create(null),initOptions,options);
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.setUp(options)',options);
@@ -282,8 +282,13 @@ function (
       return Promise.resolve(type);
     });
 
+    // 基本的にはnullでなければstateは存在すると言って良いが、
+    // iOS8で稀にstateのobjectが存在するがpropertyはないという状態になるので、厳密にチェックする
+    var existsState = !!history.state
+      && typeof history.state.historyId === 'number'
+      && typeof history.state.index === 'number';
     // ブラウザリロード時
-    if (history.state) {
+    if (existsState) {
       // リストア
       (function () {
         manager.duringSilentOperation = true;
@@ -332,7 +337,7 @@ function (
       console.log('BeautifulHistory.setUp history.state,history.length',history.state,history.length);
     }
     // ブラウザ再起動直後
-    if (!history.state && recoveryStorage.getItem('currentIndex') !== undefined) {
+    if (!existsState && recoveryStorage.getItem('currentIndex') !== undefined) {
       (function () {
         manager.duringSilentOperation = true;
         var index = recoveryStorage.getItem('currentIndex');
@@ -414,7 +419,7 @@ function (
     }
 
     // whenBrowserRestart:'redirect'でskipされた所にforwardで戻ってきてしまった場合
-    if (!history.state && storage.getItem('historyLength') === history.length) {
+    if (!existsState && storage.getItem('historyLength') === history.length) {
       (function () {
         manager.historyId = Date.now();
         manager.replace('empty',null,false,true);
@@ -429,7 +434,7 @@ function (
     }
 
     // 外部からの遷移直後
-    if (!history.state) {
+    if (!existsState) {
       (function () {
         manager.historyId = Date.now();
         manager.replace('empty',null,false,true);
@@ -752,7 +757,7 @@ function (
       }
       return promise.then(function(){
         if (manager.debug) {
-          console.log('hideControllers info', _.clone(info));
+          console.log('hideControllers info', Object.assign({},info));
         }
         var hideCallback = manager.types[info.type].hide;
         var options = info.options;

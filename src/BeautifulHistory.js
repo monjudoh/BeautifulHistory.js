@@ -282,8 +282,12 @@ function (
       return Promise.resolve(type);
     });
 
+    // 基本的にはnullでなければstateは存在すると言って良いが、
+    // iOS8で稀にstateのobjectが存在するがpropertyはないという状態になるので、厳密にチェックする
+    var existsState = !!history.state
+      && typeof history.state.historyId === 'number'
+      && typeof history.state.index === 'number';
     // ブラウザリロード時
-    var existsState = history.state;
     if (existsState) {
       // リストア
       (function () {

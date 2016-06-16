@@ -213,14 +213,14 @@ function (
     if (manager.debug) {
       console.info('BeautifulHistory.register(type,desc)',type,desc);
     }
-    desc = _.defaults(_.clone(desc),{
+    desc = Object.assign(Object.create(null),{
       factory : function (parentController,options) {
       },
       show :function (controller,options) {
       },
       hide : function (controller,options) {
       }
-    });
+    },desc);
     BeautifulHistory.types[type] = desc;
   };
   /**
@@ -241,7 +241,7 @@ function (
    * </pre>
    */
   BeautifulHistory.setUp = function setUp(options){
-    options = _.defaults(_.clone(options),initOptions);
+    options = Object.assign(Object.create(null),initOptions,options);
     var manager = this;
     if (manager.debug) {
       console.info('BeautifulHistory.setUp(options)',options);
@@ -752,7 +752,7 @@ function (
       }
       return promise.then(function(){
         if (manager.debug) {
-          console.log('hideControllers info', _.clone(info));
+          console.log('hideControllers info', Object.assign({},info));
         }
         var hideCallback = manager.types[info.type].hide;
         var options = info.options;
